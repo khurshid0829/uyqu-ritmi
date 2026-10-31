@@ -104,7 +104,10 @@ h2 { margin: 0; font-size: 17px; font-weight: 700; }
   text-decoration: none;
   transition: transform 0.12s ease;
 }
-a.small { color: var(--accent); text-decoration: none; font-weight: 500; padding: 6px 0; }
+a.small {
+  color: var(--accent); text-decoration: none; font-weight: 500;
+  min-height: 44px; display: flex; align-items: center; justify-content: center;
+}
 .btn:active { transform: scale(0.98); }
 .btn.secondary { background: var(--accent-soft); color: var(--accent-ink); }
 .btn.ghost { background: transparent; color: var(--accent); min-height: 44px; }
@@ -140,11 +143,27 @@ a.small { color: var(--accent); text-decoration: none; font-weight: 500; padding
 
 /* log */
 .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.field { display: flex; flex-direction: column; gap: 6px; }
+.card { min-width: 0; }
+html, body { overflow-x: hidden; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .field > span { font-size: 13px; color: var(--muted); margin: 0 4px; }
 .input {
   min-height: 48px; border: 1.5px solid var(--line); border-radius: 14px;
   background: var(--card); padding: 10px 14px; font-size: 17px; width: 100%;
+  min-width: 0; max-width: 100%; display: block;
+}
+/* iOS Safari gives date/time inputs an intrinsic width that overflows grids */
+input[type="date"].input, input[type="time"].input {
+  -webkit-appearance: none; appearance: none;
+  height: 48px; line-height: 26px; text-align: left;
+}
+input[type="date"].input::-webkit-date-and-time-value,
+input[type="time"].input::-webkit-date-and-time-value { text-align: left; margin: 0; }
+select.input {
+  -webkit-appearance: none; appearance: none; padding-right: 36px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 20px) 50%, calc(100% - 15px) 50%;
+  background-size: 5px 5px; background-repeat: no-repeat;
 }
 textarea.input { resize: none; min-height: 64px; }
 .moods { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
@@ -173,7 +192,7 @@ textarea.input { resize: none; min-height: 64px; }
 
 /* analysis */
 .seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; padding: 2px; border-radius: 10px; background: var(--line); }
-.seg button { min-height: 36px; border: none; border-radius: 8px; background: transparent; font-size: 14px; font-weight: 500; }
+.seg button { min-height: 44px; border: none; border-radius: 8px; background: transparent; font-size: 14px; font-weight: 500; }
 .seg button[aria-pressed="true"] { background: var(--card); font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .tile { background: var(--card); border-radius: 18px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }

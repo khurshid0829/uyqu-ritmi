@@ -181,7 +181,7 @@
     h += '<section class="card"><h2>Qisqa buyruqni yaratish</h2><ol class="steps-list">' +
       '<li><b>Qisqa buyruqlar</b> (Shortcuts) ilovasini oching va yuqoridagi <b>+</b> ni bosing.</li>' +
       '<li>Nomini aynan <b>' + SHORTCUT + '</b> qiling (yuqoridagi nom → Rename).' +
-      '<button class="btn ghost" data-act="copyName" style="min-height:40px;padding:0 4px">Nomni nusxalash</button></li>' +
+      '<button class="btn ghost" data-act="copyName" style="min-height:44px;padding:0 4px">Nomni nusxalash</button></li>' +
       '<li><b>Add Action</b> → qidiruvga <b>Dates</b> yozing → <b>Get Dates from Input</b> ni tanlang. Kirish: <b>Shortcut Input</b>.</li>' +
       '<li>Yana harakat qoʻshing → <b>Alarm</b> deb qidiring → <b>Create Alarm</b>. Vaqt maydoniga <b>Dates</b> ni qoʻying, nomiga <b>Uyqu Ritmi</b> deb yozing.</li>' +
       '<li><b>Done</b> ni bosing va shu sahifaga qayting.</li>' +
