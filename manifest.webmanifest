@@ -1,0 +1,17 @@
+{
+  "name": "Uyqu Ritmi",
+  "short_name": "Uyqu",
+  "description": "Shaxsiy uyqu ritmi: 90 daqiqalik sikllar, kundalik, tahlil va odat",
+  "lang": "uz",
+  "start_url": "./#bugun",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4F3F8",
+  "theme_color": "#F4F3F8",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
