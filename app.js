@@ -4,6 +4,7 @@
   var E = window.Engine;
   var MIN = 60000;
   var KEY = 'uyqu-ritmi-v1';
+  var SHORTCUT = 'Uyqu budilnik';
   var DEFAULTS = { wake: 390, cycles: 5, cycleLen: 90, latency: 15, targetSleep: 450, freeDays: [6, 0] };
 
   var FACTORS = [
@@ -36,7 +37,8 @@
     check: '<path d="M20 6L9 17l-5-5"/>',
     chev: '<path d="M9 6l6 6-6 6"/>',
     bulb: '<path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V16h8v-1.3A7 7 0 0 0 12 2z"/>',
-    back: '<path d="M15 18l-6-6 6-6"/>'
+    back: '<path d="M15 18l-6-6 6-6"/>',
+    bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>'
   };
 
   function icon(name, size, width) {
@@ -142,7 +144,8 @@
       '<span class="wake-time num" aria-live="polite">' + E.fmt(s.wake) + '</span>' +
       '<button class="round" data-act="wakeShift" data-v="15" aria-label="15 daqiqa kechroq">+</button>' +
       '</div>' +
-      '<span class="small muted center">Budilnikni iPhone “Soat” ilovasida ' + E.fmt(s.wake) + ' ga qoʻying</span>' +
+      '<a class="btn secondary block" href="' + alarmUrl(s.wake) + '">' + icon('bell', 20) + 'Budilnikni ' + E.fmt(s.wake) + ' ga qoʻyish</a>' +
+      '<a class="small center" href="#budilnik">Birinchi marta? 1 daqiqalik sozlash</a>' +
       '</section>';
 
     var notes = { 6: 'Toʻliq tiklanish', 5: 'Tavsiya · 7–9 soat oraligʻida', 4: 'Kam — faqat istisno holatda' };
@@ -162,6 +165,32 @@
       planRow('var(--accent)', 'Yotoqqa yotish', p.bed) +
       planRow('var(--warm)', 'Uygʻonish (yengil faza oynasi ' + E.fmt(p.alarmFrom) + ' dan)', p.wake) +
       '</section>';
+    return h;
+  }
+
+  // Runs the user's "Uyqu budilnik" shortcut, which creates a real Clock alarm.
+  function alarmUrl(m) {
+    return 'shortcuts://run-shortcut?name=' + encodeURIComponent(SHORTCUT) + '&input=text&text=' + encodeURIComponent(E.fmt(m));
+  }
+
+  function viewAlarm() {
+    var s = db.settings, h = '';
+    h += header('Bir martalik sozlash', 'Budilnik', '<a class="icon-btn" href="#bugun" aria-label="Orqaga">' + icon('back', 22) + '</a>');
+    h += '<section class="card soft"><span style="font-size:15px;line-height:21px">Veb-ilova oʻzi budilnik chala olmaydi. Shuning uchun u iPhone “Qisqa buyruqlar” ' +
+      'ilovasi orqali <b>“Soat”</b> ilovasiga haqiqiy budilnik qoʻyadi. U ovozsiz rejimda ham chaladi.</span></section>';
+    h += '<section class="card"><h2>Qisqa buyruqni yaratish</h2><ol class="steps-list">' +
+      '<li><b>Qisqa buyruqlar</b> (Shortcuts) ilovasini oching va yuqoridagi <b>+</b> ni bosing.</li>' +
+      '<li>Nomini aynan <b>' + SHORTCUT + '</b> qiling (yuqoridagi nom → Rename).' +
+      '<button class="btn ghost" data-act="copyName" style="min-height:40px;padding:0 4px">Nomni nusxalash</button></li>' +
+      '<li><b>Add Action</b> → qidiruvga <b>Dates</b> yozing → <b>Get Dates from Input</b> ni tanlang. Kirish: <b>Shortcut Input</b>.</li>' +
+      '<li>Yana harakat qoʻshing → <b>Alarm</b> deb qidiring → <b>Create Alarm</b>. Vaqt maydoniga <b>Dates</b> ni qoʻying, nomiga <b>Uyqu Ritmi</b> deb yozing.</li>' +
+      '<li><b>Done</b> ni bosing va shu sahifaga qayting.</li>' +
+      '</ol><span class="tiny muted">Harakat nomlari telefon tiliga qarab biroz farq qilishi mumkin (masalan, ruschada “Создать будильник”).</span></section>';
+    h += '<a class="btn block" href="' + alarmUrl(s.wake) + '">' + icon('bell', 20) + 'Sinab koʻrish: ' + E.fmt(s.wake) + '</a>';
+    h += '<section class="card"><h2>Bilib qoʻying</h2>' +
+      '<span class="small">• Birinchi marta iPhone ruxsat soʻraydi — “Allow” ni bosing.</span>' +
+      '<span class="small">• Har bosishda yangi budilnik qoʻshiladi. Eskisini “Soat” ilovasida oʻchirib qoʻying.</span>' +
+      '<span class="small">• Uygʻonish vaqtini oʻzgartirsangiz, tugmani qayta bosing.</span></section>';
     return h;
   }
 
@@ -415,6 +444,7 @@
     h += header('Shaxsiy sozlash', 'Sozlamalar', '<a class="icon-btn" href="#bugun" aria-label="Orqaga">' + icon('back', 22) + '</a>');
     h += '<section class="card">' +
       '<label class="field"><span>Uygʻonish vaqti</span><input class="input num" type="time" data-setting="wake" value="' + E.fmt(s.wake) + '"></label>' +
+      '<a class="small" href="#budilnik">iPhone budilnigini ulash yoʻriqnomasi</a>' +
       selectField('Sikllar soni', 'cycles', s.cycles, [[4, '4 sikl'], [5, '5 sikl (tavsiya)'], [6, '6 sikl']]) +
       selectField('Bir sikl uzunligi', 'cycleLen', s.cycleLen, range(80, 110, 5).map(function (v) { return [v, v + ' daqiqa' + (v === 90 ? ' (oʻrtacha)' : '')]; })) +
       selectField('Uxlab qolish vaqti', 'latency', s.latency, [[5, '5 daqiqa'], [10, '10 daqiqa'], [15, '15 daqiqa'], [20, '20 daqiqa'], [30, '30 daqiqa']]) +
@@ -442,7 +472,7 @@
 
   // ---------- routing ----------
 
-  var VIEWS = { bugun: viewToday, kundalik: viewLog, tahlil: viewAnalysis, odat: viewHabits, bilim: viewLearn, sozlamalar: viewSettings };
+  var VIEWS = { bugun: viewToday, kundalik: viewLog, tahlil: viewAnalysis, odat: viewHabits, bilim: viewLearn, sozlamalar: viewSettings, budilnik: viewAlarm };
   var TABS = [['bugun', 'Bugun', 'moon'], ['kundalik', 'Kundalik', 'pencil'], ['tahlil', 'Tahlil', 'chart'], ['odat', 'Odat', 'repeat'], ['bilim', 'Bilim', 'book']];
 
   function route() {
@@ -462,7 +492,7 @@
         return '<a href="#' + t[0] + '" data-tab="' + t[0] + '">' + icon(t[2]) + t[1] + '</a>';
       }).join('');
     }
-    var active = r.name === 'sozlamalar' ? 'bugun' : r.name;
+    var active = r.name === 'sozlamalar' || r.name === 'budilnik' ? 'bugun' : r.name;
     Array.prototype.forEach.call(tabs.children, function (a) {
       if (a.getAttribute('data-tab') === active) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');
@@ -543,6 +573,10 @@
       save();
       ui.draftFor = null;
       go('#kundalik');
+    },
+    copyName: function () {
+      if (navigator.clipboard) navigator.clipboard.writeText(SHORTCUT).then(function () { toast('Nusxalandi'); }, function () { toast(SHORTCUT); });
+      else toast(SHORTCUT);
     },
     period: function (el) {
       ui.period = Number(el.getAttribute('data-v'));
