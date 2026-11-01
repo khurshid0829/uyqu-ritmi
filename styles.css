@@ -272,3 +272,4 @@ details.art .src { font-size: 12px; color: var(--muted); padding-bottom: 14px; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+.bk-name { font: inherit; font-weight: 600; }

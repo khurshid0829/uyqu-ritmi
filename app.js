@@ -116,6 +116,8 @@
     var s = db.settings, now = Date.now(), p = E.tonightPlan(s), h = '';
     h += header(dateLabel(now), 'Bugun',
       '<a class="icon-btn" href="#sozlamalar" aria-label="Sozlamalar">' + icon('gear', 22) + '</a>');
+    var bk = Backup.reminder();
+    if (bk) h += '<a class="card soft small" href="#sozlamalar" style="text-decoration:none;color:inherit">' + bk + '</a>';
 
     if (db.open) {
       var mins = Math.max(0, Math.round((now - db.open.bed) / MIN));
@@ -465,14 +467,15 @@
       selectField('Uyqu maqsadi', 'targetSleep', s.targetSleep, range(390, 540, 30).map(function (v) { return [v, E.fmtDur(v)]; })) +
       selectField('Dam olish kunlari', 'freeDays', s.freeDays.join(','), [['6,0', 'Shanba va yakshanba'], ['0', 'Faqat yakshanba']]) +
       '</section>';
+    h += Backup.html();
     h += '<section class="card"><h2>Maʼlumotlar</h2>' +
-      '<span class="small muted">Hammasi faqat shu qurilmada saqlanadi. Vaqti-vaqti bilan nusxa oling.</span>' +
+      '<span class="small muted">Hammasi shu qurilmada saqlanadi. Telegram zaxirasi ulanmagan boʻlsa, vaqti-vaqti bilan nusxa oling.</span>' +
       '<button class="btn secondary block" data-act="export">Nusxa olish (JSON)</button>' +
       '<label class="btn secondary block" style="cursor:pointer">Nusxadan tiklash<input type="file" accept="application/json,.json" data-act-change="import" hidden></label>';
     if (!db.entries.length) h += '<button class="btn ghost block" data-act="demo">Namuna maʼlumot bilan sinab koʻrish</button>';
     h += '<button class="btn danger block" data-act="clearAll">Hamma maʼlumotni oʻchirish</button>' +
       '<span class="tiny muted">' + db.entries.length + ' ta yozuv saqlangan.</span></section>';
-    h += '<p class="tiny muted center" style="margin:0">Uyqu Ritmi 0.2 · tibbiy maslahat oʻrnini bosmaydi</p>';
+    h += '<p class="tiny muted center" style="margin:0">Uyqu Ritmi 0.3 · tibbiy maslahat oʻrnini bosmaydi</p>';
     return h;
   }
 
@@ -628,6 +631,7 @@
       save(); render();
     },
     export: function () {
+      Backup.noteManual();
       var name = 'uyqu-ritmi-' + E.dateKey(Date.now()) + '.json';
       var text = JSON.stringify(db, null, 2);
       var file = new File([text], name, { type: 'application/json' });
@@ -656,11 +660,11 @@
   function importFile(input) {
     var f = input.files && input.files[0];
     if (!f) return;
-    f.text().then(function (text) {
+    f.text().then(Backup.open).then(function (text) {
       var data = normalize(JSON.parse(text));
       if (!confirm(data.entries.length + ' ta yozuv topildi. Joriy maʼlumotlar almashtirilsinmi?')) return;
       db = data; save(); ui.draftFor = null; render(); toast('Tiklandi');
-    }).catch(function () { toast('Fayl oʻqilmadi'); });
+    }).catch(function (e) { toast(e.userMsg || 'Fayl oʻqilmadi'); });
   }
 
   // Plausible sample: steady weekdays, later weekends, a few late-caffeine days.
@@ -718,6 +722,8 @@
   });
 
   window.addEventListener('hashchange', render);
+
+  Backup.setup({ name: 'uyqu-ritmi', title: 'Uyqu Ritmi', getData: function () { return db; }, hasData: function () { return db.entries.length > 0; }, toast: toast });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) render(); });
 
   render();
