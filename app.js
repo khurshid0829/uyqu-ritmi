@@ -201,14 +201,27 @@
 
   function newDraft() {
     var s = db.settings, now = Date.now();
-    return { id: null, date: E.dateKey(now), bed: E.fmt(E.tonightPlan(s).bed), wake: E.fmt(s.wake), mood: null, factors: {}, note: '' };
+    return { id: null, date: E.dateKey(now), parts: [{ bed: E.fmt(E.tonightPlan(s).bed), wake: E.fmt(s.wake) }], mood: null, factors: {}, note: '' };
   }
 
   function draftFrom(e) {
     return {
-      id: e.id, date: E.dateKey(e.wake), bed: E.fmt(E.minOfDay(e.bed)), wake: E.fmt(E.minOfDay(e.wake)),
+      id: e.id, date: E.dateKey(e.wake),
+      parts: E.pieces(e).map(function (p) { return { bed: E.fmt(E.minOfDay(p.bed)), wake: E.fmt(E.minOfDay(p.wake)) }; }),
       mood: e.mood == null ? null : e.mood, factors: Object.assign({}, e.factors || {}), note: e.note || ''
     };
+  }
+
+  function partRow(p, i) {
+    return (i ? '<div class="row part-head"><b class="grow small">' + (i + 1) + '-uyqu</b><button class="btn ghost" data-act="delPart" data-v="' + i + '">Olib tashlash</button></div>' : '') +
+      '<div class="pair">' +
+      '<label class="field"><span>' + (i ? 'Yana yotdim' : 'Yotdim') + '</span><input class="input num" type="time" data-part="' + i + '" data-k="bed" value="' + esc(p.bed) + '"></label>' +
+      '<label class="field"><span>Uygʻondim</span><input class="input num" type="time" data-part="' + i + '" data-k="wake" value="' + esc(p.wake) + '"></label>' +
+      '</div>';
+  }
+
+  function partsLabel(e) {
+    return E.pieces(e).map(function (p) { return E.fmt(E.minOfDay(p.bed)) + ' – ' + E.fmt(E.minOfDay(p.wake)); }).join(', ');
   }
 
   function viewLog(arg) {
@@ -224,10 +237,10 @@
 
     h += '<section class="card">' +
       '<label class="field"><span>Uygʻongan kun</span><input class="input" type="date" data-field="date" value="' + esc(d.date) + '" max="' + E.dateKey(Date.now()) + '"></label>' +
-      '<div class="pair">' +
-      '<label class="field"><span>Yotdim</span><input class="input num" type="time" data-field="bed" value="' + esc(d.bed) + '"></label>' +
-      '<label class="field"><span>Uygʻondim</span><input class="input num" type="time" data-field="wake" value="' + esc(d.wake) + '"></label>' +
-      '</div>' + draftSummary(d, s) + '</section>';
+      d.parts.map(partRow).join('') +
+      '<button class="btn secondary block" data-act="addPart">+ Yana uxladim</button>' +
+      '<span class="tiny muted">Tunda uygʻonib yana uxlagan yoki kunduzi uxlagan boʻlsangiz, shu yerga qoʻshing.</span>' +
+      draftSummary(d, s) + '</section>';
 
     h += '<section class="card"><h2>Oʻzingizni qanday his qilyapsiz?</h2><div class="moods">';
     MOODS.forEach(function (label, i) {
@@ -258,7 +271,7 @@
         h += '<a class="hist" href="#kundalik/' + esc(e.id) + '" style="text-decoration:none;color:inherit">' +
           '<span class="mood-dot">' + (e.mood == null ? '·' : e.mood) + '</span>' +
           '<span class="grow stack" style="gap:1px"><b style="font-size:15px">' + shortDate(E.dateKey(e.wake)) + '</b>' +
-          '<span class="small muted num">' + E.fmt(E.minOfDay(e.bed)) + ' – ' + E.fmt(E.minOfDay(e.wake)) + ' · ≈' + c.cycles + ' sikl</span></span>' +
+          '<span class="small muted num">' + partsLabel(e) + ' · ≈' + c.cycles + ' sikl</span></span>' +
           '<b class="num">' + E.fmtDur(E.sleepMin(e, s)) + '</b></a>';
       });
       h += '</div>';
@@ -266,19 +279,19 @@
     return h;
   }
 
-  function draftTimes(d) {
-    if (!d.date || !d.bed || !d.wake) return null;
-    var base = E.keyToDate(d.date, 0).getTime();
-    var bedMin = E.parseClock(d.bed), wakeMin = E.parseClock(d.wake);
-    var wake = base + wakeMin * MIN, bed = base + bedMin * MIN;
-    if (bedMin > wakeMin) bed -= E.DAY * MIN;
-    return { bed: bed, wake: wake };
-  }
+  var ORDER_MSG = 'Har bir uyqu oldingisidan keyin va shu kun ichida boʻlishi kerak';
 
   function draftSummary(d, s) {
-    var t = draftTimes(d);
-    if (!t) return '';
-    var e = { bed: t.bed, wake: t.wake }, c = E.cycleEstimate(e, s);
+    var r = E.buildParts(d.date, d.parts);
+    if (!r) return '';
+    if (r.error) return '<div class="small warm" data-summary>' + ORDER_MSG + '</div>';
+    var e = E.composeEntry(r.parts);
+    if (e.parts) {
+      var awake = E.awakeMin(e);
+      return '<div class="small" data-summary>Jami uyqu ≈ <b>' + E.fmtDur(E.sleepMin(e, s)) + '</b> · ' + r.parts.length + ' boʻlak' +
+        (awake ? ' · oradagi uygʻoqlik ' + E.fmtDur(awake) : '') + '</div>';
+    }
+    var c = E.cycleEstimate(e, s);
     var fit = c.offset <= 15 ? '<span class="ok">sikl oxiriga yaqin</span>' : '<span class="muted">sikl oʻrtasida boʻlishi mumkin</span>';
     return '<div class="small" data-summary>Uyquda ≈ <b>' + E.fmtDur(E.sleepMin(e, s)) + '</b> · ≈' + c.cycles + ' sikl, ' + fit + '</div>';
   }
@@ -294,10 +307,11 @@
     });
     st.chart.forEach(function (d, i) {
       var cx = L + colW * i + colW / 2;
-      if (d.bedOff != null) {
-        var y1 = y(d.bedOff), y2 = y(d.wakeOff);
+      (d.segs || []).forEach(function (seg) {
+        if (seg.from >= SPAN) return; // afternoon naps are outside the night axis
+        var y1 = y(seg.from), y2 = y(seg.to);
         out += '<rect x="' + (cx - bw / 2) + '" y="' + y1 + '" width="' + bw + '" height="' + Math.max(2, y2 - y1) + '" rx="' + Math.min(5, bw / 2) + '" class="bar' + (d.free ? ' free' : '') + '"/>';
-      }
+      });
       var label = n <= 14 ? WD_SHORT[d.weekday] : (i % 5 === 0 || i === n - 1 ? String(E.keyToDate(d.key, 12).getDate()) : '');
       if (label) out += '<text x="' + cx + '" y="' + (H - 6) + '" class="axis" text-anchor="middle">' + label + '</text>';
     });
@@ -458,7 +472,7 @@
     if (!db.entries.length) h += '<button class="btn ghost block" data-act="demo">Namuna maʼlumot bilan sinab koʻrish</button>';
     h += '<button class="btn danger block" data-act="clearAll">Hamma maʼlumotni oʻchirish</button>' +
       '<span class="tiny muted">' + db.entries.length + ' ta yozuv saqlangan.</span></section>';
-    h += '<p class="tiny muted center" style="margin:0">Uyqu Ritmi 0.1 · tibbiy maslahat oʻrnini bosmaydi</p>';
+    h += '<p class="tiny muted center" style="margin:0">Uyqu Ritmi 0.2 · tibbiy maslahat oʻrnini bosmaydi</p>';
     return h;
   }
 
@@ -518,13 +532,17 @@
     },
     wakeup: function () {
       var now = Date.now(), bed = db.open.bed;
-      if (now - bed < 60 * MIN) {
-        // Too short for a night: most likely a mis-tap.
-        if (confirm('1 soatdan kam oʻtdi. Bu qayd bekor qilinsinmi?')) { db.open = null; save(); render(); }
+      // a second sleep on the same day joins that day's entry
+      var day = db.entries.filter(function (x) { return E.dateKey(x.wake) === E.dateKey(now) && x.wake <= bed; })[0];
+      var least = day ? 10 : 60;
+      if (now - bed < least * MIN) {
+        // Too short for a sleep: most likely a mis-tap.
+        if (confirm(least + ' daqiqadan kam oʻtdi. Bu qayd bekor qilinsinmi?')) { db.open = null; save(); render(); }
         return;
       }
-      var e = { id: uid(), bed: bed, wake: now, mood: null, factors: {}, note: '' };
-      db.entries.push(e);
+      var e = day || { id: uid(), mood: null, factors: {}, note: '' };
+      Object.assign(e, { parts: undefined }, E.composeEntry((day ? E.pieces(day) : []).concat([{ bed: bed, wake: now }])));
+      if (!day) db.entries.push(e);
       db.open = null;
       save();
       ui.draftFor = null;
@@ -550,17 +568,38 @@
       if (!ui.draft.factors[k]) delete ui.draft.factors[k];
       render();
     },
+    addPart: function () {
+      var parts = ui.draft.parts, last = parts[parts.length - 1];
+      var from = last.wake ? E.parseClock(last.wake) + 30 : E.minOfDay(Date.now());
+      parts.push({ bed: E.fmt(from), wake: E.fmt(from + 90) });
+      render();
+    },
+    delPart: function (el) {
+      ui.draft.parts.splice(Number(el.getAttribute('data-v')), 1);
+      render();
+    },
     saveEntry: function () {
-      var d = ui.draft, t = draftTimes(d);
-      if (!t) { toast('Sana va vaqtlarni kiriting'); return; }
-      var hours = (t.wake - t.bed) / MIN / 60;
-      if (hours < 1 || hours > 16) { toast('Vaqtlarni tekshiring: ' + E.fmtDur(hours * 60)); return; }
-      if (t.wake > Date.now() + 5 * MIN) { toast('Uygʻonish vaqti hali kelmagan'); return; }
-      var key = E.dateKey(t.wake);
-      var same = db.entries.filter(function (e) { return e.id !== d.id && E.dateKey(e.wake) === key; });
-      if (same.length && !confirm('Bu kun uchun yozuv bor. Yangisi bilan almashtirilsinmi?')) return;
+      var d = ui.draft, r = E.buildParts(d.date, d.parts);
+      if (!r) { toast('Sana va vaqtlarni kiriting'); return; }
+      if (r.error) { toast(ORDER_MSG); return; }
+      var mins = r.parts.map(function (p) { return (p.wake - p.bed) / MIN; });
+      var total = mins.reduce(function (a, b) { return a + b; }, 0);
+      if (total < 60 || Math.max.apply(null, mins) > 960) { toast('Vaqtlarni tekshiring: ' + E.fmtDur(total)); return; }
+      if (r.parts[r.parts.length - 1].wake > Date.now() + 5 * MIN) { toast('Uygʻonish vaqti hali kelmagan'); return; }
+      var same = db.entries.filter(function (e) { return e.id !== d.id && E.dateKey(e.wake) === d.date; });
+      var parts = r.parts, mood = d.mood, factors = d.factors, note = d.note.trim();
+      if (same.length) {
+        if (!confirm('Bu kun uchun yozuv bor. Bittaga birlashtirilsinmi?')) return;
+        same.forEach(function (e) {
+          parts = parts.concat(E.pieces(e));
+          if (mood == null) mood = e.mood == null ? null : e.mood;
+          factors = Object.assign({}, e.factors, factors);
+          note = note || e.note || '';
+        });
+        if (E.partsOverlap(parts)) { toast('Bu vaqtlar shu kungi yozuv bilan ustma-ust tushyapti'); return; }
+      }
       db.entries = db.entries.filter(function (e) { return e.id !== d.id && same.indexOf(e) < 0; });
-      db.entries.push({ id: d.id || uid(), bed: t.bed, wake: t.wake, mood: d.mood, factors: d.factors, note: d.note.trim() });
+      db.entries.push(Object.assign({ id: d.id || uid(), mood: mood, factors: factors, note: note }, E.composeEntry(parts)));
       save();
       ui.draftFor = null;
       go('#kundalik');
@@ -656,9 +695,10 @@
   });
 
   document.addEventListener('input', function (ev) {
-    var f = ev.target.getAttribute('data-field');
-    if (!f || !ui.draft) return;
-    ui.draft[f] = ev.target.value;
+    var f = ev.target.getAttribute('data-field'), part = ev.target.getAttribute('data-part');
+    if ((!f && part == null) || !ui.draft) return;
+    if (part != null) ui.draft.parts[+part][ev.target.getAttribute('data-k')] = ev.target.value;
+    else ui.draft[f] = ev.target.value;
     if (f !== 'note') {
       var box = document.querySelector('[data-summary]'), html = draftSummary(ui.draft, db.settings);
       if (box) box.outerHTML = html || '<div data-summary></div>';

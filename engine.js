@@ -5,6 +5,7 @@
 
   var DAY = 1440;
   var MIN = 60000;
+  var JOIN_GAP = 120;
 
   function mod(m) { return ((m % DAY) + DAY) % DAY; }
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -70,9 +71,50 @@
     return { bed: bed, windDown: mod(bed - 30), screensOff: mod(bed - 60), alarmFrom: mod(s.wake - 30), wake: s.wake };
   }
 
-  // Estimated sleep = time in bed minus the time it takes to fall asleep.
+  // Sleep pieces of an entry; an uninterrupted night has no `parts`.
+  function pieces(e) {
+    return e.parts && e.parts.length ? e.parts : [{ bed: e.bed, wake: e.wake }];
+  }
+
+  // Row times -> pieces on one wake day. Only the first piece may start the evening before.
+  // Returns null if a time is missing, { error: 'order' } if pieces overlap or run backwards.
+  function buildParts(date, rows) {
+    if (!date || !rows.length || rows.some(function (r) { return !r.bed || !r.wake; })) return null;
+    var base = keyToDate(date, 0).getTime(), parts = [], error = null;
+    rows.forEach(function (r, i) {
+      var bedMin = parseClock(r.bed), wakeMin = parseClock(r.wake);
+      var bed = base + bedMin * MIN, wake = base + wakeMin * MIN;
+      if (i === 0 && bedMin > wakeMin) bed -= DAY * MIN;
+      if (wake <= bed || (i > 0 && bed < parts[i - 1].wake)) error = 'order';
+      parts.push({ bed: bed, wake: wake });
+    });
+    return error ? { error: error } : { parts: parts };
+  }
+
+  // Bed and wake of the main sleep: pieces less than JOIN_GAP apart count as one night,
+  // so going back to sleep moves the wake time but a later nap does not.
+  function composeEntry(parts) {
+    var list = parts.slice().sort(function (a, b) { return a.bed - b.bed; }), end = list[0].wake;
+    for (var i = 1; i < list.length && (list[i].bed - end) / MIN <= JOIN_GAP; i++) end = list[i].wake;
+    var out = { bed: list[0].bed, wake: end };
+    if (list.length > 1) out.parts = list;
+    return out;
+  }
+
+  function partsOverlap(parts) {
+    var list = parts.slice().sort(function (a, b) { return a.bed - b.bed; });
+    return list.some(function (p, i) { return i > 0 && p.bed < list[i - 1].wake; });
+  }
+
+  // Estimated sleep = time in bed minus the time it takes to fall asleep, for each piece.
   function sleepMin(e, s) {
-    return Math.max(0, (e.wake - e.bed) / MIN - s.latency);
+    return pieces(e).reduce(function (sum, p) { return sum + Math.max(0, (p.wake - p.bed) / MIN - s.latency); }, 0);
+  }
+
+  // Minutes awake between the pieces of the main sleep.
+  function awakeMin(e) {
+    var inside = pieces(e).filter(function (p) { return p.wake <= e.wake; });
+    return inside.reduce(function (left, p) { return left - (p.wake - p.bed) / MIN; }, (e.wake - e.bed) / MIN);
   }
 
   function cycleEstimate(e, s) {
@@ -105,17 +147,19 @@
 
   // Sleep Regularity Index (Phillips et al. 2017): chance of being in the same
   // state (asleep/awake) 24 h apart, scaled to -100..100. Uses consecutive
-  // recorded nights only, sampled every 5 min.
+  // recorded nights only, sampled every 5 min. Each window runs noon to noon,
+  // so an afternoon nap falls in the window after its own entry's night.
   function sri(entries) {
     var map = byWakeKey(entries), agree = 0, total = 0;
+    var asleep = function (e, t) { return !!e && pieces(e).some(function (p) { return t >= p.bed && t < p.wake; }); };
     Object.keys(map).forEach(function (k) {
-      var a = map[k], b = map[addDays(k, 1)];
+      var a = map[k], b = map[addDays(k, 1)], before = map[addDays(k, -1)];
       if (!b) return;
       var start = keyToDate(addDays(k, -1), 12).getTime();
       for (var t = 0; t < DAY; t += 5) {
         var ta = start + t * MIN, tb = ta + DAY * MIN;
-        var sa = ta >= a.bed && ta < a.wake;
-        var sb = tb >= b.bed && tb < b.wake;
+        var sa = asleep(a, ta) || asleep(before, ta);
+        var sb = asleep(b, tb) || asleep(a, tb);
         if (sa === sb) agree++;
         total++;
       }
@@ -171,7 +215,11 @@
         weekday: weekday(k),
         free: s.freeDays.indexOf(weekday(k)) >= 0,
         bedOff: e ? nightOff(minOfDay(e.bed)) : null,
-        wakeOff: e ? Math.min(nightOff(minOfDay(e.bed)) + (e.wake - e.bed) / MIN, 2 * DAY) : null
+        wakeOff: e ? Math.min(nightOff(minOfDay(e.bed)) + (e.wake - e.bed) / MIN, 2 * DAY) : null,
+        segs: e ? pieces(e).map(function (p) {
+          var from = nightOff(minOfDay(p.bed));
+          return { from: from, to: Math.min(from + (p.wake - p.bed) / MIN, 2 * DAY) };
+        }) : null
       });
     }
     var beds = list.map(function (e) { return nightOff(minOfDay(e.bed)); });
@@ -231,6 +279,7 @@
     DAY: DAY, mod: mod, fmt: fmt, fmtDur: fmtDur, parseClock: parseClock, minOfDay: minOfDay,
     dateKey: dateKey, keyToDate: keyToDate, addDays: addDays, weekday: weekday, clockDiff: clockDiff,
     nightOff: nightOff, fromNightOff: fromNightOff, bedtimeOptions: bedtimeOptions, tonightPlan: tonightPlan,
+    pieces: pieces, buildParts: buildParts, composeEntry: composeEntry, partsOverlap: partsOverlap, awakeMin: awakeMin,
     sleepMin: sleepMin, cycleEstimate: cycleEstimate, inLastDays: inLastDays, sri: sri,
     socialJetlag: socialJetlag, sleepDebt: sleepDebt, consistency: consistency, stats: stats,
     gradualPlan: gradualPlan, moodInsights: moodInsights, freshSleep: freshSleep

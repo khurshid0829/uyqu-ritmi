@@ -1,5 +1,5 @@
 // Offline cache for the app shell. Bump VERSION when files change.
-var VERSION = 'uyqu-v3';
+var VERSION = 'uyqu-v4';
 var FILES = [
   './', 'index.html', 'styles.css', 'engine.js', 'content.js', 'app.js', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/apple-touch-icon.png', 'icons/icon-192.png', 'icons/icon-512.png'

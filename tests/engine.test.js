@@ -42,6 +42,50 @@ test('sleepMin subtracts latency, cycle estimate', () => {
   assert.deepEqual(E.cycleEstimate(e, S), { cycles: 5, offset: 3 });
 });
 
+test('interrupted night: awake time and extra latency come off the sleep', () => {
+  // 02:15-05:30, awake, 06:00-09:20
+  const r = E.buildParts('2026-10-10', [{ bed: '02:15', wake: '05:30' }, { bed: '06:00', wake: '09:20' }]);
+  const e = E.composeEntry(r.parts);
+  assert.equal(E.fmt(E.minOfDay(e.bed)), '02:15');
+  assert.equal(E.fmt(E.minOfDay(e.wake)), '09:20');
+  assert.equal(E.sleepMin(e, S), 365);
+  assert.equal(E.awakeMin(e), 30);
+  // first piece starts the evening before
+  const n = E.buildParts('2026-10-10', [{ bed: '23:15', wake: '05:30' }, { bed: '06:30', wake: '09:30' }]);
+  assert.equal(E.dateKey(n.parts[0].bed), '2026-10-09');
+  assert.equal(E.sleepMin(E.composeEntry(n.parts), S), 375 - 15 + 180 - 15);
+});
+
+test('a nap adds sleep but does not move the wake time', () => {
+  const r = E.buildParts('2026-10-10', [{ bed: '23:00', wake: '06:30' }, { bed: '14:00', wake: '15:00' }]);
+  const e = E.composeEntry(r.parts);
+  assert.equal(E.fmt(E.minOfDay(e.wake)), '06:30');
+  assert.equal(E.sleepMin(e, S), 435 + 45);
+  assert.equal(E.awakeMin(e), 0);
+});
+
+test('pieces must run in order on the wake day', () => {
+  assert.deepEqual(E.buildParts('2026-10-10', [{ bed: '02:00', wake: '05:30' }, { bed: '05:00', wake: '07:00' }]), { error: 'order' });
+  assert.deepEqual(E.buildParts('2026-10-10', [{ bed: '02:00', wake: '05:30' }, { bed: '23:00', wake: '01:00' }]), { error: 'order' });
+  assert.equal(E.buildParts('2026-10-10', [{ bed: '02:00', wake: '' }]), null);
+  // an uninterrupted night keeps the old shape
+  assert.equal(E.composeEntry(E.buildParts('2026-10-10', [{ bed: '23:00', wake: '07:00' }]).parts).parts, undefined);
+  assert.equal(E.partsOverlap([{ bed: 1, wake: 5 }, { bed: 4, wake: 6 }]), true);
+  assert.equal(E.partsOverlap([{ bed: 1, wake: 3 }, { bed: 4, wake: 6 }]), false);
+});
+
+test('SRI and chart see the awake gap', () => {
+  const whole = night(10, 23, 0, 7, 0);
+  const broken = E.composeEntry([{ bed: at(10, 23, 0) - 86400000, wake: at(10, 3, 0) }, { bed: at(10, 4, 0), wake: at(10, 7, 0) }]);
+  assert.equal(E.sri([whole, night(11, 23, 0, 7, 0)]), 100);
+  const a = E.composeEntry([{ bed: at(11, 23, 0) - 86400000, wake: at(11, 3, 0) }, { bed: at(11, 4, 0), wake: at(11, 7, 0) }]);
+  // 1 h of 24 h differs -> 1 - 1/24 -> 92
+  assert.equal(E.sri([whole, a]), 92);
+  const st = E.stats([broken], S, at(10, 9, 0), 7);
+  assert.equal(st.chart[6].segs.length, 2);
+  assert.equal(E.fmt(E.fromNightOff(st.chart[6].segs[1].from)), '04:00');
+});
+
 test('clockDiff handles midnight', () => {
   assert.equal(E.clockDiff(5, 1435), 10);
   assert.equal(E.clockDiff(1435, 5), -10);
